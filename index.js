@@ -1,9 +1,19 @@
 import { WebSocketServer } from 'ws';
 
-import {getMessages, getSocketMessages,deleteAllPlayers,instantiatePlayers,addBet} from './queries.js';
+import {
+  getMessages, 
+  getSocketMessages,
+  deleteAllPlayers,
+  instantiatePlayers,
+  addBet,
+  addBetOnOtherSlot
+} from './queries.js';
 
 const wss = new WebSocketServer({ port: 8080 });
 var playerCount = 0;
+
+var playerAdd = {pid: "LBG_BOT_662212659",playernumber: 2,headimage: "2",maskedname: "[琪]***659",pname: "[琪]LBG_BOT_662212659",initialbalance: 62252.43,finalbalance: 0,betfinished:0,bets:[0]};
+
 
 wss.on('connection', function connection(ws,req) {
     console.log(req.headers);
@@ -22,17 +32,16 @@ wss.on('connection', function connection(ws,req) {
             ws.open()
             return;
         }
-
+ /*****************ADDBET SLOTS*******************/
         if(DATA.ACTION == "ADDBET"){
           console.log("ADDBET")
           console.log(DATA.data.pid)
           console.log(DATA.data.bet)
-          addBet('10021',DATA.data.bet)
+          addBet(DATA.data,DATA.data.bet)
           .then(()=>{
 
             getSocketMessages()
             .then((players) => {
-              console.log(players);
               console.log("ADDBET");
               var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players},gamePhase: "BET_PHASE",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
               ws.send(JSON.stringify(obj));
@@ -42,7 +51,29 @@ wss.on('connection', function connection(ws,req) {
 
             return;
         }
-        
+ /*****************ADDBET SLOTS ENDS*******************/
+
+  /*****************OTHER SLOTS*******************/
+        if(DATA.ACTION == "ADDBETOTHERSLOT"){
+          console.log("ADDBETOTHERSLOT")
+          console.log(DATA.data.playernumber)
+          console.log(DATA.data.bet)
+          addBetOnOtherSlot(DATA.data,DATA.data.bet)
+          .then(()=>{
+
+            getSocketMessages()
+            .then((players) => {
+              console.log(players)
+              console.log("MESSAGE__ADDBETOTHERSLOT");
+              var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players},gamePhase: "BET_PHASE",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
+              ws.send(JSON.stringify(obj));
+            }).catch(console.log);
+
+          }).catch(console.log("ERROR___ADDBETOTHERSLOT"));
+
+            return;
+        }
+ /*****************OTHER SLOTS ENDS*******************/
         if(DATA.ACTION == "BET_PHASE"){
           console.log("BET")
             ws.open()
@@ -72,7 +103,6 @@ wss.on('connection', function connection(ws,req) {
         .then(() => {
           getSocketMessages()
             .then((players) => {
-              console.log(players)
               var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players},gamePhase: "JOIN_ROOM",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
               ws.send(JSON.stringify(obj));
               console.log(JSON.stringify(obj)); 
@@ -86,25 +116,16 @@ wss.on('connection', function connection(ws,req) {
 
               getSocketMessages()
               .then((players) => {
-                console.log(players);
                 console.log("POSTGRESS DATA");
                 var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players},gamePhase: "BET_PHASE",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
                 ws.send(JSON.stringify(obj));
 
-                // setTimeout(() => {
-                //   addPlayerBet(players, 1, function(updatedPlayers, obj) {
-                //     players = updatedPlayers;
-                //     ws.send(JSON.stringify(obj));
-                //   });
-                // }, "4200");
-
                 setTimeout(() => {
-                  addBet('LBG_BOT_662212659',1)
+                  addBet(playerAdd,50)
                   .then(()=>{
         
                     getSocketMessages()
                     .then((players) => {
-                      console.log(players);
                       console.log("OTHER PLAYERS BET");
                       var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players},gamePhase: "BET_PHASE",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
                       ws.send(JSON.stringify(obj));
@@ -114,12 +135,11 @@ wss.on('connection', function connection(ws,req) {
                 }, "4500");
 
                 setTimeout(() => {
-                  addBet('LBG_BOT_662212659',50)
+                  addBet(playerAdd,50)
                   .then(()=>{
         
                     getSocketMessages()
                     .then((players) => {
-                      console.log(players);
                       console.log("OTHER PLAYERS BET");
                       var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players},gamePhase: "BET_PHASE",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
                       ws.send(JSON.stringify(obj));

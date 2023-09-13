@@ -76,28 +76,29 @@ const instantiatePlayers = () => {
    
 };
 
-const addBet = (playerId,bet) => {
-    console.log(playerId)
+const addBet = (player,bet) => {
+    console.log(player)
     console.log(bet)
    return new Promise((resolve) => {
             pool.query(
-               `SELECT * FROM players WHERE pid = '${playerId}'`,
+               `SELECT * FROM players WHERE pid = '${player.pid}'`,
                (error, results) => {
                   if (error) {
                      throw error;
                   }
                   console.log(results.rows);
-                  var arrayBet = results.rows[0].bets;
+                  const userPlayer = results.rows[0];
+                  var arrayBet = userPlayer.bets;
                   arrayBet.push(parseInt(bet));
 
                   var initialBal = results.rows[0].initialbalance - bet;
 
                   console.log(initialBal)
-                  
+
                   pool.query(
                      `UPDATE players
                      SET bets = ARRAY[${arrayBet}],initialbalance = ${initialBal} 
-                     WHERE pid = '${playerId}'`,
+                     WHERE pid = '${userPlayer.pid}' AND playernumber = ${userPlayer.playernumber}`,
                      (error, results) => {
                         if (error) {
                            throw error;
@@ -115,4 +116,64 @@ const addBet = (playerId,bet) => {
    
 };
 
-export {getMessages,getSocketMessages,deleteAllPlayers,instantiatePlayers,addBet};
+const addBetOnOtherSlot = (player,bet) => {
+   console.log(player)
+   console.log(bet)
+  return new Promise((resolve) => {
+           pool.query(
+              `SELECT * FROM players WHERE playernumber = '${player.playernumber}' OR pid = '10021' `,
+              (error, results) => {
+                 if (error) {
+                    throw error;
+                 }
+               //   console.log(results.rows);
+               //   console.log("PLAYER NUMBER");
+                 const userSlotData = results.rows.filter(data => data.pid == '10021');
+                 const userAccount = userSlotData[0];
+                 const userOtherSlotData = results.rows.filter(data => data.playernumber == player.playernumber);
+
+                 var arrayBet = userOtherSlotData[0].bets;
+
+                 arrayBet.push(parseInt(bet));
+
+                 var initialBal = userSlotData[0].initialbalance - bet;
+
+                 console.log(initialBal)
+                 
+                 pool.query(
+                    `UPDATE players
+                    SET initialbalance = ${initialBal} 
+                    WHERE pid = '10021'`,
+                    (error, results) => {
+                       if (error) {
+                          throw error;
+                       }
+                       console.log("UPDATE USER INITIAL BALANCE")
+                       console.log(results.rows);
+                     //   resolve()
+
+                       pool.query(
+                        `UPDATE players
+                        SET bets = ARRAY[${arrayBet}],pid = '${userAccount.pname}', pname = '${userAccount.pname}'
+                        WHERE playernumber = '${player.playernumber}'`,
+                        (error, results) => {
+                           if (error) {
+                              throw error;
+                           }
+                           console.log("UPDATE OTHER SLOT TO BE THE USER")
+                           console.log(results.rows);
+                           resolve()
+            
+                     }
+                  );
+        
+                 }
+              );
+  
+           }
+        );
+  });
+  
+};
+
+export {getMessages,getSocketMessages,deleteAllPlayers,instantiatePlayers,addBet,addBetOnOtherSlot};
