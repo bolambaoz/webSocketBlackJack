@@ -76,7 +76,7 @@ const instantiatePlayers = () => {
    
 };
 
-const addBet = (player,bet) => {
+const addBet = (player,bet,botPlayerBet) => {
     console.log(player)
     console.log(bet)
    return new Promise((resolve) => {
@@ -94,22 +94,37 @@ const addBet = (player,bet) => {
                   var initialBal = results.rows[0].initialbalance - bet;
 
                   console.log(initialBal)
-
-                  pool.query(
-                     `UPDATE players
-                     SET bets = ARRAY[${arrayBet}],initialbalance = ${initialBal} 
-                     WHERE pid = '${userPlayer.pid}' AND playernumber = ${userPlayer.playernumber}`,
-                     (error, results) => {
-                        if (error) {
-                           throw error;
+                  
+                  if(botPlayerBet){
+                        pool.query(
+                           `UPDATE players
+                           SET bets = ARRAY[${arrayBet}],initialbalance = ${initialBal}, betfinished = ${1}
+                           WHERE pid = '${userPlayer.pid}' AND playernumber = ${userPlayer.playernumber}`,
+                           (error, results) => {
+                              if (error) {
+                                 throw error;
+                              }
+                              console.log(results.rows);
+                              resolve()
+               
                         }
-                        // console.log("save player")
-                        console.log(results.rows);
-                        resolve()
-         
+                     );
+                  }else{
+                        pool.query(
+                           `UPDATE players
+                           SET bets = ARRAY[${arrayBet}],initialbalance = ${initialBal} 
+                           WHERE pid = '${userPlayer.pid}' AND playernumber = ${userPlayer.playernumber}`,
+                           (error, results) => {
+                              if (error) {
+                                 throw error;
+                              }
+                              // console.log("save player")
+                              console.log(results.rows);
+                              resolve()
+               
+                        }
+                     );
                   }
-               );
-   
             }
          );
    });

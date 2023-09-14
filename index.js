@@ -37,7 +37,7 @@ wss.on('connection', function connection(ws,req) {
           console.log("ADDBET")
           console.log(DATA.data.pid)
           console.log(DATA.data.bet)
-          addBet(DATA.data,DATA.data.bet)
+          addBet(DATA.data,DATA.data.bet,false)
           .then(()=>{
 
             getSocketMessages()
@@ -121,7 +121,7 @@ wss.on('connection', function connection(ws,req) {
                 ws.send(JSON.stringify(obj));
 
                 setTimeout(() => {
-                  addBet(playerAdd,50)
+                  addBet(playerAdd,50,false)
                   .then(()=>{
         
                     getSocketMessages()
@@ -135,7 +135,7 @@ wss.on('connection', function connection(ws,req) {
                 }, "4500");
 
                 setTimeout(() => {
-                  addBet(playerAdd,50)
+                  addBet(playerAdd,50,true)
                   .then(()=>{
         
                     getSocketMessages()
