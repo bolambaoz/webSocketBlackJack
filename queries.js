@@ -6,7 +6,7 @@ import {playersData} from './mockdata.js';
 const pool = new Pool({
      user: "me",
      host: "localhost",
-     database: "api",
+     database: "blackjack",
      password: "password",
      port: 5432,
 });
@@ -55,8 +55,8 @@ const instantiatePlayers = () => {
    return new Promise((resolve) => {
       data.forEach( (p, i) => {
             pool.query(
-               "INSERT INTO players (pid, playernumber,headimg,maskedname,pname,initialbalance,finalbalance,betfinished,bets) VALUES ($1, $2, $3,$4,$5, $6, $7, $8, $9) RETURNING *",
-               [p.pid, p.playernumber, p.headimage, p.maskedname, p.pname, p.initialbalance, p.finalbalance,p.betfinished,p.bets],
+               "INSERT INTO players (pid, playernumber,headimage,maskedname,pname,initialbalance,finalbalance,betfinished,bets,cards) VALUES ($1, $2, $3,$4,$5, $6, $7, $8, $9, $10) RETURNING *",
+               [p.pid, p.playernumber, p.headimage, p.maskedname, p.pname, p.initialbalance, p.finalbalance,p.betfinished,p.bets,p.cards],
                (error, results) => {
                   if (error) {
                      throw error;
@@ -74,6 +74,34 @@ const instantiatePlayers = () => {
 
    });
    
+};
+
+const finishedBet = (player,isFinished,botPlayerBet) => {
+   console.log(player)
+   console.log(isFinished)
+  return new Promise((resolve) => {
+           pool.query(
+              `SELECT * FROM players WHERE pid = '${player.pid}'`,
+              (error, results) => {
+                 if (error) {
+                    throw error;
+                 }
+                 const userPlayer = results.rows[0];
+                 pool.query(
+                  `UPDATE players
+                  SET betfinished = ${Boolean(isFinished)}
+                  WHERE pid = '${userPlayer.pid}' OR pname = '${userPlayer.pname}'`,
+                  (error, results) => {
+                     if (error) {
+                        throw error;
+                     }
+                     resolve()
+                     }
+                  );
+           }
+        );
+  });
+  
 };
 
 const addBet = (player,bet,botPlayerBet) => {
@@ -98,7 +126,7 @@ const addBet = (player,bet,botPlayerBet) => {
                   if(botPlayerBet){
                         pool.query(
                            `UPDATE players
-                           SET bets = ARRAY[${arrayBet}],initialbalance = ${initialBal}, betfinished = ${1}
+                           SET bets = ARRAY[${arrayBet}],initialbalance = ${initialBal}, betfinished = ${true}
                            WHERE pid = '${userPlayer.pid}' AND playernumber = ${userPlayer.playernumber}`,
                            (error, results) => {
                               if (error) {
@@ -191,4 +219,10 @@ const addBetOnOtherSlot = (player,bet) => {
   
 };
 
-export {getMessages,getSocketMessages,deleteAllPlayers,instantiatePlayers,addBet,addBetOnOtherSlot};
+export {getMessages,
+      getSocketMessages,
+      deleteAllPlayers,
+      instantiatePlayers,
+      addBet,
+      addBetOnOtherSlot,
+      finishedBet};

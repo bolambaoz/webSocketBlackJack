@@ -1,4 +1,5 @@
 import { WebSocketServer } from 'ws';
+import { CronJob } from 'cron';
 
 import {
   getMessages, 
@@ -6,13 +7,28 @@ import {
   deleteAllPlayers,
   instantiatePlayers,
   addBet,
-  addBetOnOtherSlot
+  addBetOnOtherSlot,
+  finishedBet
 } from './queries.js';
+
+var job = new CronJob(
+    '* * * * * *',
+    function() {
+        console.log('Cron');
+        bettingPhase()
+    },
+    null,
+    false,
+    'America/Los_Angeles'
+);
 
 const wss = new WebSocketServer({ port: 8080 });
 var playerCount = 0;
 var webSocketConnection;
 let nIntervId;
+var betPhaseTime = 0;
+var isOtherBotFinishBet = false;
+var isJobStart = false;
 
 wss.on('connection', function connection(ws,req) {
     console.log(req.headers);
@@ -38,8 +54,7 @@ wss.on('connection', function connection(ws,req) {
         if(DATA.ACTION == "CLOSE"){
           console.log("CLOSE");
           deleteAllPlayers();
-          clearInterval(nIntervId);
-          nIntervId = null;
+          resetBetPhase();
           ws.close();
           return;
         } 
@@ -49,8 +64,13 @@ wss.on('connection', function connection(ws,req) {
             return;
         }
         if(DATA.ACTION == "FINISHED_BET"){
-          console.log("BET")
-            ws.open()
+          console.log("FINISHED_BET")
+          finishedBet(DATA.data,DATA.data.betfinished)
+          .then(()=>{
+            console.log("FINISHED_BET PLAYER");
+            checkPlayerDoneBetting();
+
+          }).catch(console.log("ADDBET"));
             return;
         }
  /*****************ADDBET SLOTS*******************/
@@ -60,13 +80,8 @@ wss.on('connection', function connection(ws,req) {
           console.log(DATA.data.bet)
           addBet(DATA.data,DATA.data.bet,false)
           .then(()=>{
-
-            getSocketMessages()
-            .then((players) => {
-              console.log("ADDBET");
-              var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players},gamePhase: "BET_PHASE",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
-              ws.send(JSON.stringify(obj));
-            }).catch(console.log);
+            console.log("ADDBET");
+            checkPlayerDoneBetting();
 
           }).catch(console.log("ADDBET"));
 
@@ -114,6 +129,7 @@ wss.on('connection', function connection(ws,req) {
             setTimeout(() => {
               getSocketMessages()
               .then((players) => {
+                resetBetPhase()
                 var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players},gamePhase: "JOIN_ROOM",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
                 ws.send(JSON.stringify(obj));
                 console.log(JSON.stringify(obj)); 
@@ -125,56 +141,90 @@ wss.on('connection', function connection(ws,req) {
             setTimeout(()=>{
 
               console.log("SEND BET PHASE");
-              getSocketMessages()
-              .then((players) => {
-                console.log("POSTGRESS DATA");
-                var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players},gamePhase: "BET_PHASE",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
-                ws.send(JSON.stringify(obj));
 
-                setTimeout(()=>{
-                  bettingPhase()
-                }, "2000")
+              if (!isJobStart) {
+                  getSocketMessages()
+                  .then((players) => {
+                    console.log("POSTGRESS DATA");
+                    var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players},gamePhase: "BET_PHASE",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
+                    ws.send(JSON.stringify(obj));
 
-              }).catch(console.log);
+                  }).catch(console.log);
+
+                  isJobStart = true;
+                  job.start()
+              }
 
             }, "2600")
             
-        }, "2500");
+        }, "2000");
         
     }
     
 });
-function bettingPhase() {
-  if (!nIntervId) {
-    nIntervId = setInterval(addOtherPlayer, 1000);
-  }
+function resetBetPhase(){
+  clearInterval(nIntervId);
+  nIntervId = null;
+  betPhaseTime = 0;
+  isOtherBotFinishBet = false;
+  isJobStart = false;
+  job.stop();
 }
+function bettingPhase() {
+  console.log(`bet time is: ${betPhaseTime}`)
+  
+  if(betPhaseTime >= 24){
+    resetBetPhase()
+    return;
+  }
 
-function addOtherPlayer(){
-  console.log("ADDING OTHER PLAYER BETS")
+  if(betPhaseTime <= 5){
+    addOtherPlayer();
+  }
+ betPhaseTime++;
+}
+function checkPlayerDoneBetting(){
     getSocketMessages()
     .then((players) => {
-       var playerHasNoBet =  players.filter(player => (player.pid !== "" && (player.bets.length-1) === 0 && player.pid !== "10021"))
+      var playersFiltered =  players.filter(player => (player.pid !== ""))
+      var isFinishedBets = players.filter(player => ((player.pid !== "" || player.pid === "10021") && player.betfinished))
 
-       if(playerHasNoBet.length === 0){
-          clearInterval(nIntervId);
-          nIntervId = null;
-          return;
-       }
-       
-       if(playerHasNoBet[0].bets.length-1 === 0){
-          addBet(playerHasNoBet[0],50,true)
-          .then(()=>{
-              getSocketMessages()
-                .then((players) => {
-                  console.log("AddedOtherPlayer");
-                  var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players},gamePhase: "BET_PHASE",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
-                  webSocketConnection.send(JSON.stringify(obj));
-                }).catch(console.log);
-          }).catch(console.log("ADDBET"));
-       }
+      var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players},gamePhase: "BET_PHASE",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
+      webSocketConnection.send(JSON.stringify(obj));
 
+      if(playersFiltered.length === isFinishedBets.length){
+        console.log("FINISHED ALL BET")
+        resetBetPhase()
+        var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players,bankercards:["poker_7H","poker_3D"]},gamePhase: "CARD_DISTRIBUTION",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
+        webSocketConnection.send(JSON.stringify(obj));
+        return
+      }
     }).catch(console.log);
+}
+function addOtherPlayer(){
+  console.log("ADDING OTHER PLAYER BETS")
+
+  if(!isOtherBotFinishBet){
+        getSocketMessages()
+        .then((players) => {
+          var playerHasNoBet =  players.filter(player => (player.pid !== "" && (player.bets.length-1) === 0 && player.pid !== "10021"))
+
+          if(playerHasNoBet.length === 0){
+            isOtherBotFinishBet = true;
+              return;
+          }
+          
+          if(playerHasNoBet[0].bets.length-1 === 0){
+              addBet(playerHasNoBet[0],50,true)
+              .then(()=>{
+                  checkPlayerDoneBetting();
+                  console.log("AddedOtherPlayer");
+              }).catch(console.log("ADDBET"));
+          }
+
+        }).catch(console.log);
+  }
+
 }
 
 function addPlayerBet(players, playerNum, callback) {
