@@ -30,11 +30,16 @@ var betPhaseTime = 0;
 var isOtherBotFinishBet = false;
 var isJobStart = false;
 
+var playersHaveTurn;
+var playersCountHaveTurn = 0;
+var filterdArrPlayerGotTurn;
+
 wss.on('connection', function connection(ws,req) {
     console.log(req.headers);
     console.log("CONNECTED");
     webSocketConnection = ws
 
+    filterdArrPlayerGotTurn = null;
     deleteAllPlayers();
     getMessages();
 
@@ -112,12 +117,46 @@ wss.on('connection', function connection(ws,req) {
  /*****************OTHER SLOTS ENDS*******************/
 
  /*****************CARD_DISTRIBUTION*******************/
-   if(DATA.ACTION == "CARD_DISTRIBUTION"){
-      console.log("CARD_DISTRIBUTION")
-      return;
-  }
-/*****************CARD_DISTRIBUTION*******************/
+      if(DATA.ACTION == "CARD_DISTRIBUTION"){
+          console.log("CARD_DISTRIBUTION")
+          return;
+      }
+/*****************CARD_DISTRIBUTION********************/
         
+/*********************TURN_PHASE**********************/
+      if(DATA.ACTION == "TURN_PHASE"){
+        console.log("TURN_PHASE")
+  
+          console.log("MIN")
+          if(!filterdArrPlayerGotTurn){
+            filterdArrPlayerGotTurn = playersHaveTurn.filter((player)=> player.pid !== "");
+            console.log("NIL filterdArrPlayerGotTurn")
+          }
+          
+          if(filterdArrPlayerGotTurn.length > 0 ){
+            filterdArrPlayerGotTurn.sort((a, b) => {
+                return a.playernumber - b.playernumber;
+            });
+  
+            var obj = {code: 4000,data: 
+              {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:playersHaveTurn,bankercards:["poker_7H","poker_3D"]},
+              gamePhase: "TURN_PHASE",
+              slotIndex: filterdArrPlayerGotTurn[0].playernumber,
+              playerChoice: null,
+              startTimestamp: 955028233360248,
+              remainingSeconds: 0};
+    
+            ws.send(JSON.stringify(obj));
+  
+  
+            console.log(filterdArrPlayerGotTurn);
+            filterdArrPlayerGotTurn.shift();
+          return;
+          }
+
+          console.log("NO MORE");
+      }
+/*******************TURN_PHASE END *******************/
     });
     
     if(playerCount == 0){
@@ -194,8 +233,17 @@ function checkPlayerDoneBetting(){
 
       if(playersFiltered.length === isFinishedBets.length){
         console.log("FINISHED ALL BET")
+        
+        playersHaveTurn = players;
+
         resetBetPhase()
-        var obj = {code: 4000,data: {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players,bankercards:["poker_7H","poker_3D"]},gamePhase: "CARD_DISTRIBUTION",playerChoice: null,startTimestamp: 955028233360248,remainingSeconds: 0};
+        var obj = {code: 4000,data: 
+          {roomId: "4655c70e7a74482d9357aac87b820774Diqb3q1sXG",players:players,bankercards:["poker_7H","poker_3D"]},
+          gamePhase: "CARD_DISTRIBUTION",
+          playerChoice: null,
+          startTimestamp: 955028233360248,
+          remainingSeconds: 0};
+
         webSocketConnection.send(JSON.stringify(obj));
         return
       }
